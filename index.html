@@ -97,11 +97,15 @@ const SK={a:"pf15-a",h:"pf15-h",s:"pf15-s",pr:"pf15-pr",jn:"pf15-jn",tg:"pf15-tg
 const COLORS=["#3d7a4a","#2874a6","#c0392b","#b7950b","#6c3483","#e67e22","#1abc9c","#e74c3c","#8e44ad","#27ae60"];
 const TY={crypto:{l:"코인",i:"₿"},stock:{l:"미국주식",i:"📈"},kr_stock:{l:"한국주식",i:"🇰🇷"},cash:{l:"현금",i:"💵"}};
 const MACROS=[
-  {title:"Net Liquidity (WALCL−TGA−RRP)",sym:"FRED:WALCL-FRED:WTREGEN-FRED:RRPONTSYD"},
+  {title:"Net Liquidity (WALCL−TGA−RRP)",sym:"FRED:WALCL-FRED:WTREGEN-FRED:RRPONTSYD",subLinks:[
+    {label:"📊 WALCL (연준 자산)",url:"https://www.tradingview.com/chart/?symbol=FRED%3AWALCL"},
+    {label:"📊 WTREGEN (재무부 일반계좌)",url:"https://www.tradingview.com/chart/?symbol=FRED%3AWTREGEN"},
+    {label:"📊 RRPONTSYD (역레포)",url:"https://www.tradingview.com/chart/?symbol=FRED%3ARRPONTSYD"}
+  ]},
   {title:"M2 통화량 YoY",sym:"FRED:M2SL",interval:"M",studies:["ROC@tv-basicstudies"]},
   {title:"HY OAS Spread",sym:"FRED:BAMLH0A0HYM2"},
-  {title:"미시간 소비자심리지수",sym:"FRED:UMCSENT",link:"https://www.tradingview.com/chart/?symbol=ECONOMICS%3AUSBCOI",linkLabel:"📊 ISM 제조업지수(USBCOI) 보기 →"},
-  {title:"미국 10년 실질금리 (TIPS)",sym:"FRED:DFII10"},
+  {title:"미시간 소비자심리지수",sym:"FRED:UMCSENT",subLinks:[{label:"📊 ISM 제조업지수(USBCOI) 보기 →",url:"https://www.tradingview.com/chart/?symbol=ECONOMICS%3AUSBCOI"}]},
+  {title:"미국 10년 실질금리 (TIPS)",sym:"FRED:DFII10",subLinks:[{label:"📊 US10Y (명목 10년물) 보기 →",url:"https://www.tradingview.com/chart/?symbol=TVC%3AUS10Y"}]},
   {title:"WTI 원유",sym:"TVC:USOIL"},
 ];
 const HELP={
@@ -116,6 +120,7 @@ portfolio:`<h4>시작하기</h4>
 <table><tr><th>버튼</th><th>기능</th></tr>
 <tr><td>⚙️ 설정</td><td>Finnhub / Twelve Data API 키 입력, 데이터 백업/복구</td></tr>
 <tr><td>⟳ 갱신</td><td>현재가 조회 + 과거 데이터를 한번에 불러옵니다. 결과는 "현재가" / "추이" 로 분리 표시됩니다</td></tr>
+<tr><td>📷 캡처</td><td>증권사 앱 스크린샷을 AI로 인식하여 보유 종목을 자동 입력합니다. ⚙️ 설정에서 AI API 키를 먼저 등록하세요 (Claude/Gemini/ChatGPT 지원)</td></tr>
 <tr><td>🗑 초기화</td><td>모든 자산과 히스토리 삭제</td></tr>
 <tr><td>+ 자산 추가</td><td>새 자산 등록</td></tr></table>
 <h4>보유 자산 테이블</h4>
@@ -137,11 +142,11 @@ portfolio:`<h4>시작하기</h4>
 macro:`<h4>매크로 차트</h4>
 <p>TradingView 실시간 차트입니다. 각 차트는 기간 변경, 줌, 도구 사용이 가능합니다.</p>
 <table><tr><th>차트</th><th>의미</th></tr>
-<tr><td>Net Liquidity</td><td>WALCL−TGA−RRP. 시장 유동성의 핵심 지표</td></tr>
+<tr><td>Net Liquidity</td><td>WALCL−TGA−RRP. 시장 유동성의 핵심 지표. 하단 버튼으로 각 구성 요소(WALCL, WTREGEN, RRPONTSYD)를 개별 확인 가능</td></tr>
 <tr><td>M2 통화량 YoY</td><td>M2 통화량 전년 대비 변화율 (ROC 12개월)</td></tr>
 <tr><td>HY OAS Spread</td><td>하이일드 채권 스프레드. 상승 시 시장 불안</td></tr>
-<tr><td>미시간 소비자심리지수</td><td>소비자 경기 체감. 하단에 ISM 제조업지수 바로가기 링크</td></tr>
-<tr><td>미국 10년 실질금리 (TIPS)</td><td>DFII10. 물가연동채권 금리 — 인플레이션 차감 후 실질 수익률</td></tr>
+<tr><td>미시간 소비자심리지수</td><td>소비자 경기 체감. 하단에 ISM 제조업지수 바로가기</td></tr>
+<tr><td>미국 10년 실질금리 (TIPS)</td><td>DFII10. 물가연동채권 금리 — 인플레이션 차감 후 실질 수익률. 하단에 US10Y(명목 금리) 바로가기</td></tr>
 <tr><td>WTI 원유</td><td>국제 원유 가격</td></tr></table>`,
 
 journal:`<h4>투자 성찰</h4>
@@ -165,7 +170,7 @@ function sv(k,v){localStorage.setItem(k,JSON.stringify(v))}
 let S={
   assets:ld(SK.a)||[],history:ld(SK.h)||[],settings:ld(SK.s)||{finnhubKey:"",twelveDataKey:"",exchangeRate:1380},
   prices:{},fetchLog:[],backfillLog:null,lastUpdate:null,fetching:false,backfilling:false,expanded:null,modal:null,
-  tab:"portfolio",news:[],newsFilter:"all",newsLoading:false,
+  tab:"portfolio",news:[],newsFilter:"all",newsLoading:false,ocrLoading:false,ocrResults:null,
   principles:ld(SK.pr)||[],journal:ld(SK.jn)||[],targets:ld(SK.tg)||{},showRealPnl:false,hideZero:true
 };
 function setState(p){Object.assign(S,typeof p==="function"?p(S):p);render()}
@@ -252,21 +257,21 @@ function tV(){return S.assets.reduce((s,a)=>s+gV(a),0)}
 function tC(){return S.assets.reduce((s,a)=>s+gC(a),0)}
 function gR(d){const h=S.history;if(h.length<2){return null}const tv=h[h.length-1]?.totalValue;const tgt=new Date();tgt.setDate(tgt.getDate()-d);const ts=tgt.toISOString().split("T")[0];let cl=null;for(const e of h){if(e.date<=ts){cl=e}}if(!cl?.totalValue){return null}return((tv-cl.totalValue)/cl.totalValue)*100}
 
-async function fetchAllPrices(){if(!S.assets.length){return}setState({fetching:true});const logs=[],np={...S.prices};const rate=await apiRate();if(rate){S.settings.exchangeRate=rate;sv(SK.s,S.settings)}for(const a of S.assets){if(a.type==="cash"){continue}let res=null,failReason="";if(a.type==="crypto"){res=await apiUpbitPrice(a.ticker);if(!res){failReason="Upbit 실패";const tdSym=cryptoTDSym(a.ticker);const tdRes=await apiTDQ(tdSym,S.settings.twelveDataKey);if(tdRes){const krwPrice=tdRes.price*S.settings.exchangeRate;res={price:krwPrice,change:tdRes.change,src:"TD(USD→KRW)"}}else{failReason+=",TD 실패"}}}else if(a.type==="stock"){res=await apiFhQ(a.ticker,S.settings.finnhubKey);if(!res){failReason="Finnhub 실패";res=await apiTDQ(a.ticker,S.settings.twelveDataKey);if(!res){failReason+=",TD 실패";res=await apiYQ(a.ticker);if(!res){failReason+=" / Yahoo 실패"}}}}else if(a.type==="kr_stock"){const code=a.ticker.replace(/\.(KS|KQ)$/i,"");res=await apiNaverCurrent(code);if(!res){failReason="Naver 실패";res=await apiYQ(getYT(a));if(!res){failReason+=" / Yahoo 실패"}}}if(res){np[a.ticker]=res;logs.push({ticker:a.ticker,ok:true,src:res.src,msg:"OK"})}else{logs.push({ticker:a.ticker,ok:false,msg:failReason||"실패"})}}const today=new Date().toISOString().split("T")[0];S.prices=np;const tv=tV();let h=[...S.history];if(tv>0){h=[...h.filter(e=>e.date!==today),{date:today,totalValue:tv}].slice(-400);sv(SK.h,h)}setState({prices:np,fetchLog:logs,lastUpdate:new Date(),fetching:false,history:h})}
+async function fetchAllPrices(){if(!S.assets.length){return}setState({fetching:true});const logs=[],np={...S.prices};const rate=await apiRate();if(rate){S.settings.exchangeRate=rate;sv(SK.s,S.settings)}for(const a of S.assets){if(a.type==="cash"){continue}const _m=calcM(a.transactions);if(_m.qty<=0){continue}let res=null,failReason="";if(a.type==="crypto"){res=await apiUpbitPrice(a.ticker);if(!res){failReason="Upbit 실패";const tdSym=cryptoTDSym(a.ticker);const tdRes=await apiTDQ(tdSym,S.settings.twelveDataKey);if(tdRes){const krwPrice=tdRes.price*S.settings.exchangeRate;res={price:krwPrice,change:tdRes.change,src:"TD(USD→KRW)"}}else{failReason+=",TD 실패"}}}else if(a.type==="stock"){res=await apiFhQ(a.ticker,S.settings.finnhubKey);if(!res){failReason="Finnhub 실패";res=await apiTDQ(a.ticker,S.settings.twelveDataKey);if(!res){failReason+=",TD 실패";res=await apiYQ(a.ticker);if(!res){failReason+=" / Yahoo 실패"}}}}else if(a.type==="kr_stock"){const code=a.ticker.replace(/\.(KS|KQ)$/i,"");res=await apiNaverCurrent(code);if(!res){failReason="Naver 실패";res=await apiYQ(getYT(a));if(!res){failReason+=" / Yahoo 실패"}}}if(res){np[a.ticker]=res;logs.push({ticker:a.ticker,ok:true,src:res.src,msg:"OK"})}else{logs.push({ticker:a.ticker,ok:false,msg:failReason||"실패"})}}const today=new Date().toISOString().split("T")[0];S.prices=np;const tv=tV();let h=[...S.history];if(tv>0){h=[...h.filter(e=>e.date!==today),{date:today,totalValue:tv}].slice(-400);sv(SK.h,h)}setState({prices:np,fetchLog:logs,lastUpdate:new Date(),fetching:false,history:h})}
 async function refreshAll(){await fetchAllPrices();await runBackfill()}
 
 async function runBackfill(){if(!S.assets.length){return}const oldH=[...S.history];setState({backfilling:true});render();
   const bfLog=[];
   try{
   const now=Math.floor(Date.now()/1000),from=now-200*86400,rate=S.settings.exchangeRate,pm={};const fD=d=>`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;const fromD=fD(new Date(from*1000)),toD=fD(new Date());
-  for(const a of S.assets){if(a.type==="cash"){continue}const hasBuy=(a.transactions||[]).some(t=>t.type==='buy');if(!hasBuy){continue}
+  for(const a of S.assets){if(a.type==="cash"){continue}const hasBuy=(a.transactions||[]).some(t=>t.type==='buy');const curQty=calcM(a.transactions).qty;if(!hasBuy||curQty<=0){continue}
     try{if(a.type==="crypto"){const c=await apiUpbitCandles(a.ticker,200);if(c.length>0){pm[a.ticker]={data:c,cur:"KRW"};bfLog.push({ticker:a.ticker,ok:true,src:"Upbit",msg:`${c.length}일`})}else if(S.settings.twelveDataKey){const tdSym=cryptoTDSym(a.ticker);const td=await apiTDC(tdSym,from,now,S.settings.twelveDataKey);if(td.data.length>0){pm[a.ticker]={data:td.data,cur:"USD"};bfLog.push({ticker:a.ticker,ok:true,src:"TD(USD)",msg:`${td.data.length}일`})}else{bfLog.push({ticker:a.ticker,ok:false,src:"Upbit→TD",msg:td.reason||"실패"})}}else{bfLog.push({ticker:a.ticker,ok:false,src:"Upbit",msg:"0개"})}await new Promise(r=>setTimeout(r,200))}
     else if(a.type==="kr_stock"){const code=a.ticker.replace(/\.(KS|KQ)$/i,"");let res=await apiNC(code,fromD,toD);if(res.data.length===0){const yr=await apiYC(getYT(a),from,now);if(yr.data.length>0){res=yr}else{res.reason=[res.reason,yr.reason].filter(Boolean).join(" / ")||"실패";res.src=(res.src||"Naver")+"→Yahoo"}}if(res.data.length>0){pm[a.ticker]={data:res.data,cur:"KRW"};bfLog.push({ticker:a.ticker,ok:true,src:res.src||"Naver",msg:`${res.data.length}일`})}else{bfLog.push({ticker:a.ticker,ok:false,src:res.src||"Naver",msg:res.reason||"실패"})}await new Promise(r=>setTimeout(r,300))}
     else if(a.type==="stock"){let res={data:[],reason:"",src:""};if(S.settings.twelveDataKey){const td=await apiTDC(a.ticker,from,now,S.settings.twelveDataKey);if(td.data.length>0){res=td;}else{res.reason=td.reason||"TD실패";res.src="TD"}await new Promise(r=>setTimeout(r,300))}if(res.data.length===0&&S.settings.finnhubKey){try{const r2=await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${a.ticker.toUpperCase()}&resolution=D&from=${from}&to=${now}&token=${S.settings.finnhubKey}`);if(r2.ok){const d=await r2.json();if(d.s==="ok"){res={data:d.t.map((t,i)=>({date:new Date(t*1000).toISOString().split("T")[0],price:d.c[i]})),src:"Finnhub"};}else{res.reason+=(res.reason?",":"")+"Fh:"+d.s;}}else{res.reason+=(res.reason?",":"")+"Fh:"+r2.status;}}catch(e){res.reason+=(res.reason?",":"")+"Fh:"+e.message;}await new Promise(r=>setTimeout(r,250))}if(res.data.length===0){const yr=await apiYC(a.ticker,from,now);if(yr.data.length>0){res=yr;}else{res.reason+=(res.reason?",":"")+"Y:"+(yr.reason||"실패");res.src=(res.src||"TD")+"→Fh→Yahoo"}await new Promise(r=>setTimeout(r,300))}if(res.data.length>0){pm[a.ticker]={data:res.data,cur:"USD"};bfLog.push({ticker:a.ticker,ok:true,src:res.src||"TwelveData",msg:`${res.data.length}일`})}else{bfLog.push({ticker:a.ticker,ok:false,src:res.src||"TD→Fh→Yahoo",msg:res.reason||"실패"})}}
     }catch(e){bfLog.push({ticker:a.ticker,ok:false,msg:e.message})}}
   const okC=bfLog.filter(l=>l.ok).length,failC=bfLog.filter(l=>!l.ok).length;
   if(!Object.keys(pm).length){setState({backfillLog:bfLog,history:oldH,backfilling:false});return}
-  const nonCash=S.assets.filter(a=>a.type!=="cash"&&(a.transactions||[]).some(t=>t.type==='buy'));
+  const nonCash=S.assets.filter(a=>a.type!=="cash"&&(a.transactions||[]).some(t=>t.type==='buy')&&calcM(a.transactions).qty>0);
   const gotData=nonCash.filter(a=>pm[a.ticker]).length;
   if(gotData<nonCash.length*0.7&&oldH.length>10){setState({backfillLog:bfLog,backfilling:false});return}
   // ═══ 6개월 전체 날짜 생성 ═══
@@ -294,13 +299,96 @@ async function runBackfill(){if(!S.assets.length){return}const oldH=[...S.histor
       const pr=pm2.map.get(date);if(pr!=null){lastPrice[a.ticker]=pr}
       const useP=lastPrice[a.ticker];if(useP!=null&&useP>0){t+=qty*(pm2.cur==="USD"?useP*rate:useP)}
     }
-    if(!warmedUp){let ok=true;for(const a of S.assets){if(a.type==="cash")continue;const q=(date<(firstTxDate[a.id]||"9"))?(estQty[a.id]||0):runQty[a.id];if(q>0&&!lastPrice[a.ticker]){ok=false;break}}if(ok)warmedUp=true}
+    if(!warmedUp){let ok=true;for(const a of S.assets){if(a.type==="cash")continue;if(!priceMap[a.ticker])continue;const q=(date<(firstTxDate[a.id]||"9"))?(estQty[a.id]||0):runQty[a.id];if(q>0&&!lastPrice[a.ticker]){ok=false;break}}if(ok)warmedUp=true}
     if(warmedUp){nh.push({date,totalValue:t,estimated:date<firstRealDate})}
   }
   const today=new Date().toISOString().split("T")[0],tv=tV();if(tv>0){const ti=nh.findIndex(h=>h.date===today);if(ti>=0){nh[ti].totalValue=tv}else{nh.push({date:today,totalValue:tv})}}
   if(!nh.length){setState({backfillLog:bfLog,history:oldH,backfilling:false});return}
   sv(SK.h,nh.slice(-400));setState({backfillLog:bfLog,history:nh.slice(-400),backfilling:false})
   }catch(err){console.error("backfill error:",err);bfLog.push({ticker:"시스템",ok:false,msg:err.message});setState({backfillLog:bfLog,history:oldH,backfilling:false})}}
+
+// ═══ OCR ═══
+const OCR_PROMPT=`이 증권사 앱 스크린샷에서 보유 종목 정보를 추출하세요.
+응답은 반드시 JSON 배열만 출력하세요 (설명 없이, 마크다운 없이, 순수 JSON만).
+형식: [{"name":"종목명","ticker":"티커코드","qty":수량,"avgPrice":평균매입단가,"type":"kr_stock|stock|crypto"}]
+규칙:
+- type: 한국주식=kr_stock, 미국주식=stock, 암호화폐=crypto
+- 한국주식 ticker: 6자리 숫자 (예: 005930)
+- 미국주식 ticker: 영문 대문자 (예: AAPL)
+- 코인 ticker: KRW-BTC 형태
+- 종목코드가 안 보이면 종목명으로 추정하세요
+- 수량과 평단가의 쉼표/통화기호는 제거하고 숫자만`;
+
+async function callAiVision(base64,mimeType){
+  const prov=S.settings.aiProvider||"claude";
+  const key=S.settings.aiApiKey;
+  if(!key){throw new Error("AI API 키가 설정되지 않았습니다. ⚙️ 설정에서 등록하세요.")}
+  if(prov==="claude"){
+    const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:mimeType,data:base64}},{type:"text",text:OCR_PROMPT}]}]})});
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(`Claude API 오류: ${e.error?.message||r.status}`)}
+    const d=await r.json();const txt=d.content?.find(c=>c.type==="text")?.text||"";return parseOcrJson(txt)
+  }else if(prov==="gemini"){
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{inline_data:{mime_type:mimeType,data:base64}},{text:OCR_PROMPT}]}]})});
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(`Gemini API 오류: ${e.error?.message||r.status}`)}
+    const d=await r.json();const txt=d.candidates?.[0]?.content?.parts?.[0]?.text||"";return parseOcrJson(txt)
+  }else if(prov==="openai"){
+    const r=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${key}`},body:JSON.stringify({model:"gpt-4o",max_tokens:2000,messages:[{role:"user",content:[{type:"image_url",image_url:{url:`data:${mimeType};base64,${base64}`}},{type:"text",text:OCR_PROMPT}]}]})});
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(`OpenAI API 오류: ${e.error?.message||r.status}`)}
+    const d=await r.json();const txt=d.choices?.[0]?.message?.content||"";return parseOcrJson(txt)
+  }
+  throw new Error("지원하지 않는 AI 제공자입니다.")
+}
+
+function parseOcrJson(txt){
+  const clean=txt.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+  const m=clean.match(/\[[\s\S]*\]/);
+  if(!m){throw new Error("AI 응답에서 JSON을 찾을 수 없습니다.")}
+  const arr=JSON.parse(m[0]);
+  return arr.map(item=>({
+    name:String(item.name||"").trim(),
+    ticker:String(item.ticker||"").toUpperCase().trim(),
+    qty:parseFloat(item.qty)||0,
+    avgPrice:parseFloat(item.avgPrice)||0,
+    type:item.type||"kr_stock",
+    checked:true
+  }))
+}
+
+async function processOcrFile(input){
+  const file=input.files?.[0];if(!file){return}
+  if(!file.type.startsWith("image/")){return alert("이미지 파일만 지원합니다.")}
+  S.ocrLoading=true;S.ocrResults=null;render();openModal("ocrPreview");
+  try{
+    const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=()=>rej(new Error("파일 읽기 실패"));r.readAsDataURL(file)});
+    const results=await callAiVision(base64,file.type);
+    S.ocrResults=results;S.ocrLoading=false;render();openModal("ocrPreview")
+  }catch(e){S.ocrLoading=false;S.ocrResults=null;render();alert("OCR 오류: "+e.message)}
+}
+
+function toggleOcrItem(i){if(S.ocrResults&&S.ocrResults[i]){S.ocrResults[i].checked=!S.ocrResults[i].checked;render();openModal("ocrPreview")}}
+
+function submitOcr(){
+  const items=(S.ocrResults||[]).filter(r=>r.checked&&r.ticker&&r.qty>0);
+  if(!items.length){return alert("추가할 항목을 선택하세요.")}
+  const dt=new Date().toISOString().split("T")[0];
+  for(const item of items){
+    const txId=genId();const txs=[];
+    if(item.qty>0&&item.avgPrice>0){txs.push({id:txId,date:dt,type:"buy",qty:item.qty,price:item.avgPrice,er:S.settings.exchangeRate})}
+    const asset={id:Date.now().toString()+Math.random().toString(36).slice(2,4),type:item.type,ticker:item.type==="crypto"?(item.ticker.startsWith("KRW-")?item.ticker:"KRW-"+item.ticker):item.type==="kr_stock"?(item.ticker.match(/^\d{6}$/)?item.ticker+".KS":item.ticker):item.ticker,name:item.name,transactions:txs};
+    if(item.type==="kr_stock"){asset.market=item.ticker.endsWith(".KQ")?"kosdaq":"kospi"}
+    S.assets.push(asset);
+    // Cash link
+    if(txs.length>0){
+      const kr=isK(asset);const cur=kr?"KRW":"USD";const amt=item.qty*item.avgPrice;
+      let cash=S.assets.find(c=>c.type==="cash"&&c.currency===cur);
+      if(!cash){cash={id:"cash-"+cur+"-"+Date.now(),type:"cash",name:cur==="KRW"?"현금(원)":"현금(달러)",currency:cur,transactions:[]};S.assets.push(cash)}
+      if(!cash.transactions){cash.transactions=[]}
+      cash.transactions.push({id:genId(),type:"buy_out",date:dt,amount:amt,linkedTxId:txId,linkedAsset:item.name});
+      S.journal.push({date:dt,action:`${item.name} ${fQ(item.qty)} 매수 @ ${kr?fK(item.avgPrice):"$"+item.avgPrice.toFixed(2)}`,reason:"OCR 캡처 입력",auto:true})
+    }
+  }
+  sv(SK.a,S.assets);sv(SK.jn,S.journal);S.ocrResults=null;closeModal();refreshAll()
+}
 
 // ═══ FORMAT ═══
 function fK(n){return`₩${Math.round(n||0).toLocaleString()}`}
@@ -327,7 +415,7 @@ function render(){document.querySelectorAll(".overlay").forEach(el=>el.remove())
 
 // ═══ PORTFOLIO TAB ═══
 function rPort(el){const tv=tV(),tc2=tC(),pnl=tv-tc2,pnlP=tc2>0?(pnl/tc2*100):0;const rPnl=S.assets.reduce((s,a)=>s+calcRK(a),0);const r1=gR(1),r7=gR(7),r30=gR(30);
-  el.innerHTML=`<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap"><button class="g" onclick="openModal('settings')">⚙️ 설정</button><button class="g" onclick="refreshAll()" ${S.fetching||S.backfilling?"disabled":""}>${S.fetching||S.backfilling?"⏳ 갱신중...":"⟳ 갱신"}</button><button class="g" onclick="resetAll()">🗑 초기화</button><button class="p" onclick="openModal('addAsset')">+ 자산 추가</button></div>
+  el.innerHTML=`<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap"><button class="g" onclick="openModal('settings')">⚙️ 설정</button><button class="g" onclick="refreshAll()" ${S.fetching||S.backfilling?"disabled":""}>${S.fetching||S.backfilling?"⏳ 갱신중...":"⟳ 갱신"}</button><button class="g" onclick="resetAll()">🗑 초기화</button><button class="p" onclick="openModal('addAsset')">+ 자산 추가</button><button class="g" onclick="document.getElementById('ocrFile').click()" style="color:var(--purple);border-color:rgba(108,52,131,.2)">📷 캡처</button><input type="file" id="ocrFile" accept="image/*" style="display:none" onchange="processOcrFile(this)"/></div>
 <div class="sum-grid"><div class="sum-card" style="border-left:3px solid var(--green)"><span class="sum-label">총 자산가치</span><span class="sum-value">${fK(tv)}</span></div><div class="sum-card" style="border-left:3px solid var(--blue)"><span class="sum-label">총 투자원금</span><span class="sum-value sm">${fK(tc2)}</span></div><div class="sum-card" style="border-left:3px solid ${pnl>=0?"var(--green)":"var(--red)"}"><span class="sum-label">미실현 손익</span><span class="sum-value" style="font-size:18px;color:${pnl>=0?"var(--green)":"var(--red)"}">${pnl>=0?"+":""}${fK(pnl)} <span style="font-size:11px;opacity:.7">${fP(pnlP)}</span></span></div><div class="sum-card" style="border-left:3px solid ${rPnl>=0?"var(--green)":"var(--red)"};cursor:pointer" onclick="S.showRealPnl=!S.showRealPnl;render()"><span class="sum-label">실현 손익 ${S.showRealPnl?"▲":"▼"}</span><span class="sum-value sm" style="color:${rPnl>=0?"var(--green)":"var(--red)"}">${rPnl>=0?"+":""}${fK(rPnl)}</span></div></div>
 ${S.showRealPnl?rRealPnl():""}
 ${S.history.length>1?`<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">${[["1일",r1],["7일",r7],["30일",r30]].map(([l,v])=>v!=null?`<span class="fb ${v>=0?"active":""}" style="color:${v>=0?"var(--green)":"var(--red)"};border-color:${v>=0?"rgba(61,122,74,.2)":"rgba(192,57,43,.2)"};background:${v>=0?"var(--gbg)":"var(--rbg)"}">${l} ${fP(v)}</span>`:"").join("")}<span style="font-size:10px;color:var(--text3);font-family:var(--mono)">₩${Math.round(S.settings.exchangeRate).toLocaleString()}/USD</span></div>`:""}
@@ -373,7 +461,7 @@ ${tgtAssets.map(a=>{const cur=(gV(a)/tv*100);const goal=parseFloat(S.targets[a.i
 
 // ═══ MACRO TAB ═══
 let macroInit=false;
-function rMacro(el){el.innerHTML=`<div style="margin-bottom:12px;font-size:12px;color:var(--text2)">TradingView 실시간 차트</div><div class="macro-grid">${MACROS.map((w,i)=>`<div class="mc"><div class="mct">${w.title}</div><div id="tvc_${i}" style="height:380px"></div>${w.link?`<div style="padding:8px 14px;border-top:1px solid var(--border);text-align:center"><a href="${w.link}" target="_blank" rel="noopener" style="font-size:12px;color:var(--blue);font-weight:600;text-decoration:none;font-family:var(--mono)">${w.linkLabel}</a></div>`:""}</div>`).join("")}</div>`;
+function rMacro(el){el.innerHTML=`<div style="margin-bottom:12px;font-size:12px;color:var(--text2)">TradingView 실시간 차트</div><div class="macro-grid">${MACROS.map((w,i)=>`<div class="mc"><div class="mct">${w.title}</div><div id="tvc_${i}" style="height:380px"></div>${w.subLinks?`<div style="padding:6px 10px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:4px;justify-content:center">${w.subLinks.map(sl=>`<a href="${sl.url}" target="_blank" rel="noopener" style="font-size:11px;color:var(--blue);font-weight:500;text-decoration:none;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg);font-family:var(--mono);transition:all .15s" onmouseover="this.style.background='var(--gbg)';this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.background='var(--bg)';this.style.borderColor='var(--border)';this.style.color='var(--blue)'">${sl.label}</a>`).join("")}</div>`:""}</div>`).join("")}</div>`;
   // Load tv.js and create widgets
   if(!document.getElementById("tvjs")){const sc=document.createElement("script");sc.id="tvjs";sc.src="https://s3.tradingview.com/tv.js";sc.onload=()=>initTVWidgets();document.head.appendChild(sc)}else{setTimeout(initTVWidgets,100)}}
 
@@ -398,7 +486,7 @@ function rJournal(el){el.innerHTML=`<div style="display:flex;gap:10px;flex-wrap:
 function openModal(t){S.modal={type:t,args:Array.from(arguments).slice(1)};render()}
 function closeModal(){S.modal=null;render()}
 function rModal(){const{modal:md}=S;if(!md){return}const ov=document.createElement("div");ov.className="overlay";ov.onclick=e=>{if(e.target===ov){closeModal()}};
-  if(md.type==="settings"){ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()"><h3 class="mt">⚙️ 설정</h3><div class="fg"><label class="lb">Finnhub API 키 <a href="https://finnhub.io" target="_blank" style="font-size:10px;color:var(--blue)">무료 발급 →</a></label><input class="inp" id="sK" value="${S.settings.finnhubKey}" placeholder="미국주식 실시간 조회용 (선택)"/></div><div class="fg"><label class="lb">Twelve Data API 키 <a href="https://twelvedata.com" target="_blank" style="font-size:10px;color:var(--blue)">무료 발급 →</a></label><input class="inp" id="sTD" value="${S.settings.twelveDataKey||""}" placeholder="미국주식·코인 백업용 (선택)"/></div><div style="font-size:11px;color:var(--text3);margin-bottom:14px">Finnhub 과거 데이터 실패 시 Twelve Data → Yahoo 순으로 자동 대체됩니다.<br>코인은 Upbit 장애 시 TD로 자동 대체됩니다. 한국주식은 키 없이 동작합니다.</div><div style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px"><div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">데이터 백업 / 복구</div><div style="display:flex;gap:8px;margin-bottom:8px"><button class="g" onclick="exportBackup()" style="flex:1">📥 백업 (JSON 다운로드)</button><button class="g" onclick="document.getElementById('importFile').click()" style="flex:1">📤 복구 (JSON 업로드)</button></div><input type="file" id="importFile" accept=".json" style="display:none" onchange="importBackup(this)"/><div style="font-size:10px;color:var(--text3);line-height:1.5">백업 파일이 있으면 컴퓨터/브라우저가 바뀌어도 데이터를 복원할 수 있습니다.</div></div><div class="mbtn"><button class="g" onclick="closeModal()">취소</button><button class="p" onclick="saveSett()">저장</button></div></div>`}
+  if(md.type==="settings"){const _ap=S.settings.aiProvider||"claude";ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()"><h3 class="mt">⚙️ 설정</h3><div class="fg"><label class="lb">Finnhub API 키 <a href="https://finnhub.io" target="_blank" style="font-size:10px;color:var(--blue)">무료 발급 →</a></label><input class="inp" id="sK" value="${S.settings.finnhubKey}" placeholder="미국주식 실시간 조회용 (선택)"/></div><div class="fg"><label class="lb">Twelve Data API 키 <a href="https://twelvedata.com" target="_blank" style="font-size:10px;color:var(--blue)">무료 발급 →</a></label><input class="inp" id="sTD" value="${S.settings.twelveDataKey||""}" placeholder="미국주식·코인 백업용 (선택)"/></div><div style="font-size:11px;color:var(--text3);margin-bottom:14px">Finnhub 과거 데이터 실패 시 Twelve Data → Yahoo 순으로 자동 대체됩니다.<br>코인은 Upbit 장애 시 TD로 자동 대체됩니다. 한국주식은 키 없이 동작합니다.</div><div style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px"><div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">📷 AI API (캡처 인식용)</div><div class="fg"><label class="lb">AI 제공자</label><select class="inp" id="sAiP"><option value="claude" ${_ap==="claude"?"selected":""}>Claude (Anthropic)</option><option value="gemini" ${_ap==="gemini"?"selected":""}>Gemini (Google)</option><option value="openai" ${_ap==="openai"?"selected":""}>ChatGPT (OpenAI)</option></select></div><div class="fg"><label class="lb">AI API 키</label><input class="inp" id="sAiK" type="password" value="${S.settings.aiApiKey||""}" placeholder="캡처 인식 기능에 필요 (선택)"/></div><div style="font-size:10px;color:var(--text3);line-height:1.5;margin-bottom:14px">증권사 앱 스크린샷에서 보유 종목을 자동 인식합니다. 각 서비스에서 API 키를 발급받으세요.</div></div><div style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px"><div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px">데이터 백업 / 복구</div><div style="display:flex;gap:8px;margin-bottom:8px"><button class="g" onclick="exportBackup()" style="flex:1">📥 백업 (JSON 다운로드)</button><button class="g" onclick="document.getElementById('importFile').click()" style="flex:1">📤 복구 (JSON 업로드)</button></div><input type="file" id="importFile" accept=".json" style="display:none" onchange="importBackup(this)"/><div style="font-size:10px;color:var(--text3);line-height:1.5">백업 파일이 있으면 컴퓨터/브라우저가 바뀌어도 데이터를 복원할 수 있습니다.</div></div><div class="mbtn"><button class="g" onclick="closeModal()">취소</button><button class="p" onclick="saveSett()">저장</button></div></div>`}
   else if(md.type==="addAsset"){ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()"><h3 class="mt">자산 추가</h3><div class="tbs"><button class="tb active" id="tb-crypto" onclick="swT('crypto')">₿ 코인</button><button class="tb" id="tb-stock" onclick="swT('stock')">📈 미국주식</button><button class="tb" id="tb-kr_stock" onclick="swT('kr_stock')">🇰🇷 한국주식</button><button class="tb" id="tb-cash" onclick="swT('cash')">💵 현금</button></div><div id="aB"></div><div class="mbtn"><button class="g" onclick="closeModal()">취소</button><button class="p" onclick="subAdd()">추가</button></div></div>`;requestAnimationFrame(()=>swT("crypto"))}
   else if(md.type==="addTx"){const[aid,an,at2]=md.args;const cur=isK({type:at2})?"KRW":"USD";ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()"><h3 class="mt">거래 추가 — ${an}</h3><input type="hidden" id="txA" value="${aid}"/><div class="tbs"><button class="tb active" id="txb-buy" onclick="swTx('buy')" style="border-color:var(--green);color:var(--green);background:var(--gbg)">매수</button><button class="tb" id="txb-sell" onclick="swTx('sell')">매도</button></div><input type="hidden" id="txT" value="buy"/><div class="fg"><label class="lb">날짜</label><input class="inp" type="date" id="txD" value="${new Date().toISOString().split("T")[0]}"/></div><div style="display:flex;gap:8px"><div class="fg" style="flex:1"><label class="lb">수량</label><input class="inp" type="number" step="any" id="txQ" placeholder="0"/></div><div class="fg" style="flex:1"><label class="lb">단가 (${cur})</label><input class="inp" type="number" step="any" id="txP" placeholder="0"/></div></div><div class="mbtn"><button class="g" onclick="closeModal()">취소</button><button class="p" onclick="subTx()">추가</button></div></div>`}
   else if(md.type==="addPr"){ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()"><h3 class="mt">투자 성찰 추가</h3><div class="fg"><label class="lb">내용</label><textarea class="inp" id="prT" rows="3" placeholder="예: 감정에 휘둘리지 않는다" style="font-family:var(--sans)"></textarea></div><div class="mbtn"><button class="g" onclick="closeModal()">취소</button><button class="p" onclick="subPr()">추가</button></div></div>`}
@@ -408,6 +496,17 @@ function rModal(){const{modal:md}=S;if(!md){return}const ov=document.createEleme
     ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()"><h3 class="mt">💰 ${cname} — 입금/출금</h3><div style="background:#f9f7f2;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-family:var(--mono);font-size:14px;font-weight:600;color:var(--white)">잔액: ${sym}${bal.toLocaleString()}</div><input type="hidden" id="cxA" value="${cid}"/><div class="tbs"><button class="tb active" id="cxb-deposit" onclick="swCx('deposit')" style="border-color:var(--green);color:var(--green);background:var(--gbg)">입금</button><button class="tb" id="cxb-withdraw" onclick="swCx('withdraw')">출금</button></div><input type="hidden" id="cxT" value="deposit"/><div class="fg"><label class="lb">금액 (${ccur})</label><input class="inp" type="number" step="any" id="cxV" placeholder="0"/></div><div class="mbtn"><button class="g" onclick="closeModal()">취소</button><button class="p" onclick="subCashTx()">확인</button></div></div>`}
   else if(md.type==="editTx"){const[aid,tid]=md.args;const a=S.assets.find(a=>a.id===aid);const tx=a?.transactions?.find(t=>t.id===tid);if(!a||!tx){closeModal();return}const kr=isK(a);const cur=kr?"KRW":"USD";
     ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()"><h3 class="mt">거래 수정 — ${a.name||a.ticker}</h3><input type="hidden" id="etA" value="${aid}"/><input type="hidden" id="etI" value="${tid}"/><div style="font-size:12px;font-weight:600;margin-bottom:12px;color:${tx.type==="buy"?"var(--green)":"var(--red)"}">${tx.type==="buy"?"매수":"매도"}</div><div class="fg"><label class="lb">날짜</label><input class="inp" type="date" id="etD" value="${tx.date}"/></div><div style="display:flex;gap:8px"><div class="fg" style="flex:1"><label class="lb">수량</label><input class="inp" type="number" step="any" id="etQ" value="${tx.qty}"/></div><div class="fg" style="flex:1"><label class="lb">단가 (${cur})</label><input class="inp" type="number" step="any" id="etP" value="${tx.price}"/></div></div><div class="mbtn"><button class="g" onclick="closeModal()">취소</button><button class="p" onclick="subEditTx()">저장</button></div></div>`}
+  else if(md.type==="ocrPreview"){
+    const provName={"claude":"Claude","gemini":"Gemini","openai":"ChatGPT"}[S.settings.aiProvider||"claude"]||"AI";
+    if(S.ocrLoading){
+      ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()" style="max-width:500px"><h3 class="mt">📷 캡처 인식 중...</h3><div style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px;animation:fadeIn 1s infinite alternate">🔍</div><p style="color:var(--text2);font-size:13px">${provName}이(가) 이미지를 분석하고 있습니다...</p><p style="color:var(--text3);font-size:11px;margin-top:6px">보통 5~15초 소요됩니다</p></div></div>`
+    }else if(S.ocrResults&&S.ocrResults.length>0){
+      const tl={"kr_stock":"🇰🇷 한국","stock":"📈 미국","crypto":"₿ 코인"};
+      ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()" style="max-width:600px"><h3 class="mt">📷 인식 결과 — ${S.ocrResults.length}건</h3><div style="overflow-x:auto"><table><thead><tr><th style="width:30px"></th><th style="text-align:left">종목명</th><th style="text-align:left">티커</th><th style="text-align:right">수량</th><th style="text-align:right">평단가</th><th style="text-align:left">타입</th></tr></thead><tbody>${S.ocrResults.map((r,i)=>`<tr style="border-bottom:1px solid #f0ece4"><td style="text-align:center"><input type="checkbox" ${r.checked?"checked":""} onchange="toggleOcrItem(${i})"/></td><td style="padding:6px 8px"><input class="inp" style="width:100%;font-size:11px;padding:4px 6px" value="${esc(r.name)}" onchange="S.ocrResults[${i}].name=this.value"/></td><td style="padding:6px 8px"><input class="inp" style="width:80px;font-size:11px;padding:4px 6px;font-family:var(--mono)" value="${esc(r.ticker)}" onchange="S.ocrResults[${i}].ticker=this.value.toUpperCase()"/></td><td style="padding:6px 8px"><input class="inp" style="width:70px;font-size:11px;padding:4px 6px;text-align:right" type="number" step="any" value="${r.qty}" onchange="S.ocrResults[${i}].qty=parseFloat(this.value)||0"/></td><td style="padding:6px 8px"><input class="inp" style="width:90px;font-size:11px;padding:4px 6px;text-align:right" type="number" step="any" value="${r.avgPrice}" onchange="S.ocrResults[${i}].avgPrice=parseFloat(this.value)||0"/></td><td style="padding:6px 8px"><select class="inp" style="width:80px;font-size:10px;padding:3px 4px" onchange="S.ocrResults[${i}].type=this.value"><option value="kr_stock" ${r.type==="kr_stock"?"selected":""}>🇰🇷 한국</option><option value="stock" ${r.type==="stock"?"selected":""}>📈 미국</option><option value="crypto" ${r.type==="crypto"?"selected":""}>₿ 코인</option></select></td></tr>`).join("")}</tbody></table></div><div style="background:#fef8e7;border:1px solid #f0ddb8;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:11px;color:#8a6914;line-height:1.6"><strong>⚠️ 확인 필요:</strong> 티커와 종목명이 일치하는지 반드시 확인하세요. AI가 잘못 인식할 수 있으며, 특히 우선주·ETF·소형주는 티커를 직접 수정해주세요.</div><div class="mbtn"><button class="g" onclick="S.ocrResults=null;closeModal()">취소</button><button class="p" onclick="submitOcr()">✅ 선택 항목 추가 (${S.ocrResults.filter(r=>r.checked).length}건)</button></div></div>`
+    }else{
+      ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()"><h3 class="mt">📷 인식 결과</h3><div style="text-align:center;padding:30px;color:var(--text3)"><p>인식된 종목이 없습니다.</p><p style="font-size:11px;margin-top:6px">다른 화면을 캡처해보세요.</p></div><div class="mbtn"><button class="g" onclick="closeModal()">닫기</button></div></div>`
+    }
+  }
   document.body.appendChild(ov)}
 
 // ═══ ACTIONS ═══
@@ -417,7 +516,7 @@ function swT(t){addTp=t;document.querySelectorAll("[id^=tb-]").forEach(b=>b.clas
   else{const h={crypto:"BTC, ETH",stock:"AAPL, TSLA",kr_stock:"005930, 373220"},pL=isK({type:t})?"KRW":"USD";bd.innerHTML=`<div class="fg"><label class="lb">티커 <span style="font-size:9px;color:#bbb">예: ${h[t]}</span></label><input class="inp" id="aTk" placeholder="${t==="crypto"?"BTC":t==="kr_stock"?"005930":"AAPL"}"/></div>${t==="kr_stock"?`<div class="fg"><label class="lb">시장</label><select class="inp" id="aMk"><option value="kospi">KOSPI</option><option value="kosdaq">KOSDAQ</option></select></div>`:""}<div class="fg"><label class="lb">자산 이름</label><input class="inp" id="aN" placeholder="${t==="crypto"?"비트코인":t==="kr_stock"?"삼성전자":"애플"}"/></div><div class="ibox"><div style="font-size:11px;color:var(--green);font-weight:600;margin-bottom:8px">첫 매수 (선택)</div><div class="fg"><label class="lb">날짜</label><input class="inp" type="date" id="aDt" value="${new Date().toISOString().split("T")[0]}"/></div><div style="display:flex;gap:8px"><div class="fg" style="flex:1"><label class="lb">수량</label><input class="inp" type="number" step="any" id="aQ" placeholder="0"/></div><div class="fg" style="flex:1"><label class="lb">단가 (${pL})</label><input class="inp" type="number" step="any" id="aP" placeholder="0"/></div></div></div>`}}
 function swTx(t){document.getElementById("txT").value=t;document.querySelectorAll("[id^=txb-]").forEach(b=>{b.classList.remove("active");b.style.cssText=""});const b=document.getElementById(`txb-${t}`);b.classList.add("active");b.style.cssText=t==="buy"?"border-color:var(--green);color:var(--green);background:var(--gbg)":"border-color:var(--red);color:var(--red);background:var(--rbg)"}
 function swCx(t){document.getElementById("cxT").value=t;document.querySelectorAll("[id^=cxb-]").forEach(b=>{b.classList.remove("active");b.style.cssText=""});const b=document.getElementById(`cxb-${t}`);b.classList.add("active");b.style.cssText=t==="deposit"?"border-color:var(--green);color:var(--green);background:var(--gbg)":"border-color:var(--red);color:var(--red);background:var(--rbg)"}
-function saveSett(){S.settings.finnhubKey=document.getElementById("sK")?.value?.trim()||"";S.settings.twelveDataKey=document.getElementById("sTD")?.value?.trim()||"";sv(SK.s,S.settings);closeModal()}
+function saveSett(){S.settings.finnhubKey=document.getElementById("sK")?.value?.trim()||"";S.settings.twelveDataKey=document.getElementById("sTD")?.value?.trim()||"";S.settings.aiProvider=document.getElementById("sAiP")?.value||"claude";S.settings.aiApiKey=document.getElementById("sAiK")?.value?.trim()||"";sv(SK.s,S.settings);closeModal()}
 function exportBackup(){
   const data={};const keys=["pf15-a","pf15-h","pf15-s","pf15-pr","pf15-jn","pf15-tg","pf15-cc"];
   keys.forEach(k=>{const v=localStorage.getItem(k);if(v){data[k]=JSON.parse(v)}});
