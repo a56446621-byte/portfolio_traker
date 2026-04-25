@@ -170,7 +170,7 @@ function sv(k,v){localStorage.setItem(k,JSON.stringify(v))}
 let S={
   assets:ld(SK.a)||[],history:ld(SK.h)||[],settings:ld(SK.s)||{finnhubKey:"",twelveDataKey:"",exchangeRate:1380},
   prices:{},fetchLog:[],backfillLog:null,lastUpdate:null,fetching:false,backfilling:false,expanded:null,modal:null,
-  tab:"portfolio",news:[],newsFilter:"all",newsLoading:false,ocrLoading:false,ocrResults:null,
+  tab:"portfolio",news:[],newsFilter:"all",newsLoading:false,ocrLoading:false,ocrResults:null,ocrStatusMsg:"",
   principles:ld(SK.pr)||[],journal:ld(SK.jn)||[],targets:ld(SK.tg)||{},showRealPnl:false,hideZero:true
 };
 function setState(p){Object.assign(S,typeof p==="function"?p(S):p);render()}
@@ -318,13 +318,39 @@ const OCR_PROMPT=`이 증권사 앱 스크린샷에서 보유 종목 정보를 �
 - 코인 ticker: KRW-BTC 형태
 - 종목코드가 안 보이면 종목명으로 추정하세요
 - 수량과 평단가의 쉼표/통화기호는 제거하고 숫자만`;
+const GEMINI_MODELS=["gemini-2.0-flash","gemini-2.0-flash-lite"];
+
+async function callGeminiOnce(base64,mimeType,model){
+  const key=S.settings.geminiKey;
+  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{inline_data:{mime_type:mimeType,data:base64}},{text:OCR_PROMPT}]}]})});
+  if(!r.ok){const e=await r.json().catch(()=>({}));const msg=e.error?.message||"";
+    const isQuota=r.status===429||msg.includes("Quota exceeded")||msg.includes("RESOURCE_EXHAUSTED");
+    if(isQuota){const rm=msg.match(/retry in ([\d.]+)/i);const ws=rm?Math.ceil(parseFloat(rm[1])):30;throw{type:"quota",waitSec:ws,model}}
+    throw{type:"error",msg:`Gemini 오류 (${model}): ${msg||r.status}`}}
+  const d=await r.json();const txt=d.candidates?.[0]?.content?.parts?.[0]?.text||"";return parseOcrJson(txt)
+}
+
+function ocrStatus(msg){S.ocrStatusMsg=msg;render();openModal("ocrPreview")}
+async function ocrWait(sec,prefix){for(let i=sec;i>0;i--){ocrStatus(`${prefix} ${i}초 후 재시도...`);await new Promise(r=>setTimeout(r,1000))}}
 
 async function callGeminiOcr(base64,mimeType){
   const key=S.settings.geminiKey;
   if(!key){throw new Error("Gemini API 키가 설정되지 않았습니다. ⚙️ 설정에서 등록하세요.")}
-  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{inline_data:{mime_type:mimeType,data:base64}},{text:OCR_PROMPT}]}]})});
-  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(`Gemini API 오류: ${e.error?.message||r.status}`)}
-  const d=await r.json();const txt=d.candidates?.[0]?.content?.parts?.[0]?.text||"";return parseOcrJson(txt)
+  for(let mi=0;mi<GEMINI_MODELS.length;mi++){
+    const model=GEMINI_MODELS[mi];
+    for(let att=0;att<2;att++){
+      try{ocrStatus(att>0?`${model} 재시도 중...`:`${model}(으)로 분석 중...`);return await callGeminiOnce(base64,mimeType,model)
+      }catch(e){
+        if(e.type==="quota"){
+          if(att===0){await ocrWait(e.waitSec,`⏳ ${model} 한도 초과.`);continue}
+          if(mi<GEMINI_MODELS.length-1){ocrStatus(`${model} 한도 초과 — ${GEMINI_MODELS[mi+1]}(으)로 전환 중...`);await new Promise(r=>setTimeout(r,1500));break}
+          throw new Error("모든 Gemini 모델 한도 초과. 1분 후 다시 시도하세요.")
+        }
+        throw new Error(e.msg||e.message||"알 수 없는 오류")
+      }
+    }
+  }
+  throw new Error("모든 Gemini 모델이 실패했습니다.")
 }
 
 function parseOcrJson(txt){
@@ -343,14 +369,15 @@ function parseOcrJson(txt){
 }
 
 async function processOcrFile(input){
-  const file=input.files?.[0];if(!file){return}
+  const file=input.files?.[0];input.value="";if(!file){return}
   if(!file.type.startsWith("image/")){return alert("이미지 파일만 지원합니다.")}
-  S.ocrLoading=true;S.ocrResults=null;render();openModal("ocrPreview");
+  if(S.ocrLoading){return}
+  S.ocrLoading=true;S.ocrResults=null;S.ocrStatusMsg="이미지 준비 중...";render();openModal("ocrPreview");
   try{
     const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=()=>rej(new Error("파일 읽기 실패"));r.readAsDataURL(file)});
     const results=await callGeminiOcr(base64,file.type);
-    S.ocrResults=results;S.ocrLoading=false;render();openModal("ocrPreview")
-  }catch(e){S.ocrLoading=false;S.ocrResults=null;render();alert("OCR 오류: "+e.message)}
+    S.ocrResults=results;S.ocrLoading=false;S.ocrStatusMsg="";render();openModal("ocrPreview")
+  }catch(e){S.ocrLoading=false;S.ocrResults=null;S.ocrStatusMsg="";render();alert("OCR 오류: "+e.message)}
 }
 
 function toggleOcrItem(i){if(S.ocrResults&&S.ocrResults[i]){S.ocrResults[i].checked=!S.ocrResults[i].checked;render();openModal("ocrPreview")}}
@@ -403,7 +430,7 @@ function render(){document.querySelectorAll(".overlay").forEach(el=>el.remove())
 
 // ═══ PORTFOLIO TAB ═══
 function rPort(el){const tv=tV(),tc2=tC(),pnl=tv-tc2,pnlP=tc2>0?(pnl/tc2*100):0;const rPnl=S.assets.reduce((s,a)=>s+calcRK(a),0);const r1=gR(1),r7=gR(7),r30=gR(30);
-  el.innerHTML=`<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap"><button class="g" onclick="openModal('settings')">⚙️ 설정</button><button class="g" onclick="refreshAll()" ${S.fetching||S.backfilling?"disabled":""}>${S.fetching||S.backfilling?"⏳ 갱신중...":"⟳ 갱신"}</button><button class="g" onclick="resetAll()">🗑 초기화</button><button class="p" onclick="openModal('addAsset')">+ 자산 추가</button><button class="g" onclick="document.getElementById('ocrFile').click()" style="color:var(--purple);border-color:rgba(108,52,131,.2)">📷 캡처</button><input type="file" id="ocrFile" accept="image/*" style="display:none" onchange="processOcrFile(this)"/></div>
+  el.innerHTML=`<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap"><button class="g" onclick="openModal('settings')">⚙️ 설정</button><button class="g" onclick="refreshAll()" ${S.fetching||S.backfilling?"disabled":""}>${S.fetching||S.backfilling?"⏳ 갱신중...":"⟳ 갱신"}</button><button class="g" onclick="resetAll()">🗑 초기화</button><button class="p" onclick="openModal('addAsset')">+ 자산 추가</button><button class="g" onclick="document.getElementById('ocrFile').click()" ${S.ocrLoading?"disabled":""}style="color:var(--purple);border-color:rgba(108,52,131,.2)">${S.ocrLoading?"⏳ 인식중...":"📷 캡처"}</button><input type="file" id="ocrFile" accept="image/*" style="display:none" onchange="processOcrFile(this)"/></div>
 <div class="sum-grid"><div class="sum-card" style="border-left:3px solid var(--green)"><span class="sum-label">총 자산가치</span><span class="sum-value">${fK(tv)}</span></div><div class="sum-card" style="border-left:3px solid var(--blue)"><span class="sum-label">총 투자원금</span><span class="sum-value sm">${fK(tc2)}</span></div><div class="sum-card" style="border-left:3px solid ${pnl>=0?"var(--green)":"var(--red)"}"><span class="sum-label">미실현 손익</span><span class="sum-value" style="font-size:18px;color:${pnl>=0?"var(--green)":"var(--red)"}">${pnl>=0?"+":""}${fK(pnl)} <span style="font-size:11px;opacity:.7">${fP(pnlP)}</span></span></div><div class="sum-card" style="border-left:3px solid ${rPnl>=0?"var(--green)":"var(--red)"};cursor:pointer" onclick="S.showRealPnl=!S.showRealPnl;render()"><span class="sum-label">실현 손익 ${S.showRealPnl?"▲":"▼"}</span><span class="sum-value sm" style="color:${rPnl>=0?"var(--green)":"var(--red)"}">${rPnl>=0?"+":""}${fK(rPnl)}</span></div></div>
 ${S.showRealPnl?rRealPnl():""}
 ${S.history.length>1?`<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">${[["1일",r1],["7일",r7],["30일",r30]].map(([l,v])=>v!=null?`<span class="fb ${v>=0?"active":""}" style="color:${v>=0?"var(--green)":"var(--red)"};border-color:${v>=0?"rgba(61,122,74,.2)":"rgba(192,57,43,.2)"};background:${v>=0?"var(--gbg)":"var(--rbg)"}">${l} ${fP(v)}</span>`:"").join("")}<span style="font-size:10px;color:var(--text3);font-family:var(--mono)">₩${Math.round(S.settings.exchangeRate).toLocaleString()}/USD</span></div>`:""}
@@ -485,9 +512,9 @@ function rModal(){const{modal:md}=S;if(!md){return}const ov=document.createEleme
   else if(md.type==="editTx"){const[aid,tid]=md.args;const a=S.assets.find(a=>a.id===aid);const tx=a?.transactions?.find(t=>t.id===tid);if(!a||!tx){closeModal();return}const kr=isK(a);const cur=kr?"KRW":"USD";
     ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()"><h3 class="mt">거래 수정 — ${a.name||a.ticker}</h3><input type="hidden" id="etA" value="${aid}"/><input type="hidden" id="etI" value="${tid}"/><div style="font-size:12px;font-weight:600;margin-bottom:12px;color:${tx.type==="buy"?"var(--green)":"var(--red)"}">${tx.type==="buy"?"매수":"매도"}</div><div class="fg"><label class="lb">날짜</label><input class="inp" type="date" id="etD" value="${tx.date}"/></div><div style="display:flex;gap:8px"><div class="fg" style="flex:1"><label class="lb">수량</label><input class="inp" type="number" step="any" id="etQ" value="${tx.qty}"/></div><div class="fg" style="flex:1"><label class="lb">단가 (${cur})</label><input class="inp" type="number" step="any" id="etP" value="${tx.price}"/></div></div><div class="mbtn"><button class="g" onclick="closeModal()">취소</button><button class="p" onclick="subEditTx()">저장</button></div></div>`}
   else if(md.type==="ocrPreview"){
-    const provName="Gemini";
     if(S.ocrLoading){
-      ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()" style="max-width:500px"><h3 class="mt">📷 캡처 인식 중...</h3><div style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px;animation:fadeIn 1s infinite alternate">🔍</div><p style="color:var(--text2);font-size:13px">${provName}이(가) 이미지를 분석하고 있습니다...</p><p style="color:var(--text3);font-size:11px;margin-top:6px">보통 5~15초 소요됩니다</p></div></div>`
+      const sm=S.ocrStatusMsg||"이미지를 분석하고 있습니다...";
+      ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()" style="max-width:500px"><h3 class="mt">📷 캡처 인식 중...</h3><div style="text-align:center;padding:40px"><div style="font-size:36px;margin-bottom:12px;animation:fadeIn 1s infinite alternate">🔍</div><p style="color:var(--text2);font-size:13px">${esc(sm)}</p><p style="color:var(--text3);font-size:11px;margin-top:6px">Gemini Flash → Flash-Lite 자동 전환</p></div></div>`
     }else if(S.ocrResults&&S.ocrResults.length>0){
       const tl={"kr_stock":"🇰🇷 한국","stock":"📈 미국","crypto":"₿ 코인"};
       ov.innerHTML=`<div class="modal" onclick="event.stopPropagation()" style="max-width:600px"><h3 class="mt">📷 인식 결과 — ${S.ocrResults.length}건</h3><div style="overflow-x:auto"><table><thead><tr><th style="width:30px"></th><th style="text-align:left">종목명</th><th style="text-align:left">티커</th><th style="text-align:right">수량</th><th style="text-align:right">평단가</th><th style="text-align:left">타입</th></tr></thead><tbody>${S.ocrResults.map((r,i)=>`<tr style="border-bottom:1px solid #f0ece4"><td style="text-align:center"><input type="checkbox" ${r.checked?"checked":""} onchange="toggleOcrItem(${i})"/></td><td style="padding:6px 8px"><input class="inp" style="width:100%;font-size:11px;padding:4px 6px" value="${esc(r.name)}" onchange="S.ocrResults[${i}].name=this.value"/></td><td style="padding:6px 8px"><input class="inp" style="width:80px;font-size:11px;padding:4px 6px;font-family:var(--mono)" value="${esc(r.ticker)}" onchange="S.ocrResults[${i}].ticker=this.value.toUpperCase()"/></td><td style="padding:6px 8px"><input class="inp" style="width:70px;font-size:11px;padding:4px 6px;text-align:right" type="number" step="any" value="${r.qty}" onchange="S.ocrResults[${i}].qty=parseFloat(this.value)||0"/></td><td style="padding:6px 8px"><input class="inp" style="width:90px;font-size:11px;padding:4px 6px;text-align:right" type="number" step="any" value="${r.avgPrice}" onchange="S.ocrResults[${i}].avgPrice=parseFloat(this.value)||0"/></td><td style="padding:6px 8px"><select class="inp" style="width:80px;font-size:10px;padding:3px 4px" onchange="S.ocrResults[${i}].type=this.value"><option value="kr_stock" ${r.type==="kr_stock"?"selected":""}>🇰🇷 한국</option><option value="stock" ${r.type==="stock"?"selected":""}>📈 미국</option><option value="crypto" ${r.type==="crypto"?"selected":""}>₿ 코인</option></select></td></tr>`).join("")}</tbody></table></div><div style="background:#fef8e7;border:1px solid #f0ddb8;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:11px;color:#8a6914;line-height:1.6"><strong>⚠️ 확인 필요:</strong> 티커와 종목명이 일치하는지 반드시 확인하세요. AI가 잘못 인식할 수 있으며, 특히 우선주·ETF·소형주는 티커를 직접 수정해주세요.</div><div class="mbtn"><button class="g" onclick="S.ocrResults=null;closeModal()">취소</button><button class="p" onclick="submitOcr()">✅ 선택 항목 추가 (${S.ocrResults.filter(r=>r.checked).length}건)</button></div></div>`
